@@ -1,0 +1,1196 @@
+openapi: 3.0.0
+info:
+  title: ORI
+  version: 1.0.0
+
+servers:
+  - url: http://generic-ori.com
+  
+paths:
+  /tasks:
+    post:
+      summary: Creates new task
+      operationId: createTask
+      requestBody:
+        description: Contains task parameters
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskParameters'
+      responses:
+        '200':
+          description: Successful response containing selected data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResult'
+        '201':
+          description: Successful response containing registered task id
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  taskId:
+                    $ref: '#/components/schemas/TaskId'
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/TaskId'
+    get:
+      summary: Returns registred task status array
+      operationId: getTasks
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskStatus'
+  /tasks/{taskId}:
+    get:
+      summary: Returns task status
+      operationId: getTask
+      responses:
+        '200':
+          description: Successful response containing task status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskStatus'
+    delete:
+      summary: Deletes task
+      operationId: deleteTask
+      responses:
+        '204':
+          description: Successful response
+    parameters:
+      - name: taskId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/TaskId'
+  /tasks/{taskId}/result:
+    get:
+      summary: Returns prepared result
+      operationId: getTaskResult
+      responses:
+        '200':
+          description: Successful response containing prepared result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResult'
+            application/octet-stream:
+              schema:
+                type: string
+    parameters:
+      - name: taskId
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/TaskId'
+      - name: from
+        in: query
+        schema:
+          type: integer
+        description: First record to return
+      - name: to
+        in: query
+        schema:
+          type: integer
+        description: Last record to return
+  
+components:
+  schemas:
+    #-------------------------------
+    # Task status
+    #-------------------------------
+    TaskStatus:
+      type: object
+      properties:
+        ready:
+          type: boolean
+        result:
+          $ref: '#/components/schemas/TaskStatusResult'
+      required:
+        - ready
+
+    TaskStatusResult:
+      oneOf:
+        - $ref: '#/components/schemas/TaskStatusResultOk'
+        - $ref: '#/components/schemas/TaskStatusResultError'
+      discriminator:
+        propertyName: successful
+        mapping:
+          true: '#/components/schemas/TaskStatusResultOk'
+          false: '#/components/schemas/TaskStatusResultError'
+
+    TaskStatusResultOk:
+      oneOf:
+        - $ref: '#/components/schemas/TaskStatusResultOkStatisticRecords'
+        - $ref: '#/components/schemas/TaskStatusResultOkContentFile'
+      discriminator:
+        propertyName: type
+        mapping:
+          statistic_records: '#/components/schemas/TaskStatusResultOkStatisticRecords'
+          content_file: '#/components/schemas/TaskStatusResultOkContentFile'
+
+    TaskStatusResultOkStatisticRecords:
+      description: Number of prepared statistic records
+      type: object
+      properties:
+        records:
+          type: number
+          minimum: 0
+      required:
+        - records
+    
+    TaskStatusResultOkContentFile:
+      description: Prepared file size in bytes
+      type: object
+      properties:
+        bytes:
+          type: number
+          minimum: 0
+      required:
+        - bytes
+      
+    TaskStatusResultError:
+      type: object
+      properties: 
+        message:
+          type: string
+          minLength: 1
+          maxLength: 256
+
+    #-------------------------------
+    # Task parameters
+    #-------------------------------
+    TaskParameters:
+      oneOf:
+        - $ref: '#/components/schemas/StatisticParameters'
+        - $ref: '#/components/schemas/ContentParameters'
+      discriminator:
+        propertyName: typeRequest
+        mapping:
+          statistic: '#/components/schemas/StatisticParameters'
+          content: '#/components/schemas/ContentParameters'
+
+    StatisticParameters:
+      type: object
+      properties:
+        typeRequest:
+          type: string
+        telcoIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/TelcoId'
+        findRange:
+          type: object
+          properties:
+            begin:
+              $ref: '#/components/schemas/DateTime'
+            end:
+              $ref: '#/components/schemas/DateTime'
+          required:
+            - begin
+            - end
+        taskType:
+          enum: [abonents, connections, aaa, links, certs, keys]
+        parameters:
+          $ref: '#/components/schemas/StatisticParameter'
+
+    StatisticParameter:
+      oneOf:
+        - $ref: '#/components/schemas/LogicalNot'
+        - $ref: '#/components/schemas/LogicalAnd'
+        - $ref: '#/components/schemas/LogicalOr'
+        - $ref: '#/components/schemas/SimpleParameter'
+
+    LogicalNot:
+      type: object
+      properties:
+        not:
+          $ref: '#/components/schemas/StatisticParameter'
+      required:
+        - not
+
+    LogicalAnd:
+      type: object
+      properties:
+        and:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatisticParameter'
+      required:
+        - and
+
+    LogicalOr:
+      type: object
+      properties:
+        or:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatisticParameter'
+      required:
+        - or
+          
+    SimpleParameter:
+      type: object
+      properties:
+        parameter:
+          oneOf:
+            - $ref: '#/components/schemas/RequestAbonents'
+            - $ref: '#/components/schemas/RequestConnections'
+            - $ref: '#/components/schemas/RequestAaa'
+            - $ref: '#/components/schemas/RequestLinks'
+            - $ref: '#/components/schemas/RequestCerts'
+            - $ref: '#/components/schemas/RequestKeys'
+      required:
+        - parameter
+
+    RequestAbonents:
+      type: object
+      required:
+        - typeP
+      properties:
+        typeP:
+          oneOf:
+          - $ref: '#/components/schemas/UserId'
+          - $ref: '#/components/schemas/NickName'
+          - $ref: '#/components/schemas/GivenName'
+          - $ref: '#/components/schemas/InitialName'
+          - $ref: '#/components/schemas/FamilyName'
+          - $ref: '#/components/schemas/AddressData'
+          - $ref: '#/components/schemas/PassportData'
+          - $ref: '#/components/schemas/Msisdn'
+          - $ref: '#/components/schemas/Email'
+          - $ref: '#/components/schemas/ImId'
+          - $ref: '#/components/schemas/Contract'
+      discriminator:
+        propertyName: typeP
+        mapping:
+          userId: '#/components/schemas/UserId' # идентификатор пользователя
+          nickName: '#/components/schemas/NickName' # псевдоним пользователя
+          givenName: '#/components/schemas/GivenName' # имя
+          initialName: '#/components/schemas/InitialName' # отчество
+          familyName: '#/components/schemas/FamilyName' # фамилия
+          address: '#/components/schemas/AddressData' # адресные данные
+          passport: '#/components/schemas/PassportData' # паспортные данные
+          relatives: '#/components/schemas/UserId' # идентификатор родственника
+          msisdn: '#/components/schemas/Msisdn' # номер телефона пользователя
+          email: '#/components/schemas/Email' # электронная почта пользователя
+          imId: '#/components/schemas/ImId' # идентификатор в других мессанджерах
+          contract: '#/components/schemas/Contract' # номер договора
+      
+    RequestConnections:
+      type: object
+      properties:
+        value:
+          oneOf:
+            - $ref: '#/components/schemas/ServiceId'
+            - $ref: '#/components/schemas/UserId'
+            - $ref: '#/components/schemas/IpPort'
+            - $ref: '#/components/schemas/Msisdn'
+            - $ref: '#/components/schemas/Email'
+            - $ref: '#/components/schemas/Programm'
+            - $ref: '#/components/schemas/MiscInfo'
+            - $ref: '#/components/schemas/Location'
+            - $ref: '#/components/schemas/ResourceName'
+            - $ref: '#/components/schemas/EventId'
+            - $ref: '#/components/schemas/String'
+            - $ref: '#/components/schemas/PaymentId'
+            - $ref: '#/components/schemas/PaymentInfo'
+          discriminator:
+            propertyName: type
+            mapping:
+              serviceId: '#/components/schemas/ServiceId' # идентификатор сервиса
+              abonentId: '#/components/schemas/UserId' # идентификатор абонента
+              abonentIpPort: '#/components/schemas/IpPort' # ip/port абонента
+              abonentMsisdn: '#/components/schemas/Msisdn' # номер телефона абонента
+              abonentEmail: '#/components/schemas/Email' # электронная почта абонента
+              abonentProgramm: '#/components/schemas/Programm' # имя программы абонента
+              abonentMiscInfo: '#/components/schemas/MiscInfo' # прочая техническая информация
+              abonentLocation: '#/components/schemas/Location' # местоположение абонента
+              contactId: '#/components/schemas/UserId' # идентификатор контакта
+              resourceName: '#/components/schemas/ResourceName' # наименование ресурса
+              eventId: '#/components/schemas/EventId' # тип события
+              ownerId: '#/components/schemas/UserId' # идентификатор владельца ресурса
+              text: '#/components/schemas/String' # текст сообщения
+              paymentId: '#/components/schemas/PaymentId' # идентификатор платежа
+              paymentInfo: '#/components/schemas/PaymentInfo' # платежная информация
+
+    RequestAaa:
+      type: object
+      properties:
+        value:
+          oneOf:
+            - $ref: '#/components/schemas/ServiceId'
+            - $ref: '#/components/schemas/UserId'
+            - $ref: '#/components/schemas/IpPort'
+            - $ref: '#/components/schemas/Msisdn'
+            - $ref: '#/components/schemas/Email'
+            - $ref: '#/components/schemas/Programm'
+            - $ref: '#/components/schemas/MiscInfo'
+            - $ref: '#/components/schemas/Location'
+            - $ref: '#/components/schemas/EventId'
+          discriminator:
+            propertyName: type
+            mapping:
+              serviceId: '#/components/schemas/ServiceId' # идентификатор сервиса
+              userId: '#/components/schemas/UserId' # идентификатор пользователя
+              userIpPort: '#/components/schemas/IpPort' # ip/port пользователя
+              userMsisdn: '#/components/schemas/Msisdn' # номер телефона пользователя
+              userEmail: '#/components/schemas/Email' # электронная почта пользователя
+              userProgramm: '#/components/schemas/Programm' # имя программы пользователя
+              userMiscInfo: '#/components/schemas/MiscInfo' # прочая техническая информация
+              userLocation: '#/components/schemas/Location' # местоположение пользователя
+              eventId: '#/components/schemas/EventId' # тип события
+
+    RequestLinks:
+      type: object
+      properties:
+        value:
+          oneOf:
+            - $ref: '#/components/schemas/UserId'
+            - $ref: '#/components/schemas/ResourceName'
+          discriminator:
+            propertyName: type
+            mapping:
+              userIdA: '#/components/schemas/UserId' # пользователь, установивливающий связь
+              userIdB: '#/components/schemas/UserId' # пользователь, с которым установили связь
+              resourceName: '#/components/schemas/ResourceName' # наименование ресурса
+
+    RequestCerts:
+      type: object
+      properties:
+        type:
+          enum: [client, server]
+        value:
+          $ref: '#/components/schemas/IpPort'
+
+    RequestKeys:
+      type: object
+      properties:
+        value:
+          oneOf:
+            - $ref: '#/components/schemas/IpPort'
+            - $ref: '#/components/schemas/Integer'
+            - $ref: '#/components/schemas/Sni'
+            - $ref: '#/components/schemas/UserId'
+            - $ref: '#/components/schemas/UserLogin'
+            - $ref: '#/components/schemas/Region'
+            - $ref: '#/components/schemas/ServiceName'
+          discriminator:
+            propertyName: type
+            mapping:
+              client: '#/components/schemas/IpPort' # ip/port клиента
+              server: '#/components/schemas/IpPort' # ip/port сервера
+              asServer: '#/components/schemas/Integer' # автономная система сервера
+              asClient: '#/components/schemas/Integer' # автономная система клиента
+              sni: '#/components/schemas/Sni' # server name indication
+              userId: '#/components/schemas/UserId' # идентификатор пользователя
+              userLogin: '#/components/schemas/UserLogin' # пользовательский логин
+              clientRegion: '#/components/schemas/Region' # регион клиента
+              serverRegion: '#/components/schemas/Region' # регион сервера
+              serviceName: '#/components/schemas/ServiceName' # имя сервиса
+    
+    ContentParameters:
+      type: object
+      properties:
+        typeRequest:
+          type: string
+        telcoIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/TelcoId'
+        parameters:
+          type: object
+          properties:
+            streamId:
+              $ref: '#/components/schemas/StreamId'
+            beginOffset:
+              type: integer
+            endOffset:
+              type: integer
+          required:
+            - streamId
+
+    #-------------------------------
+    # Task results
+    #-------------------------------
+    TaskResult:
+      type: array
+      items:
+        oneOf:
+          - $ref: '#/components/schemas/RecordAbonent'
+          - $ref: '#/components/schemas/RecordConnection'
+          - $ref: '#/components/schemas/RecordAaa'
+          - $ref: '#/components/schemas/RecordLink'
+          - $ref: '#/components/schemas/RecordCert'
+          - $ref: '#/components/schemas/RecordKey'
+
+    RecordAbonent:
+      type: object
+      properties:
+        telcoId:
+          # филиал ОРИ, обслуживаемый ТС ОРМ
+          $ref: '#/components/schemas/TelcoId'
+        userIdentifier:
+          # идентификатор/тип пользователя
+          $ref: '#/components/schemas/UserIdentifier'
+        userRegistered:
+          # дата и время регистрации
+          $ref: '#/components/schemas/DateTime'
+        nickName:
+          # псевдоним пользователя
+          $ref: '#/components/schemas/NickName'
+        birthDate:
+          # дата рождения
+          $ref: '#/components/schemas/Date'
+        address:
+          # адресные данные
+          oneOf:
+            - $ref: '#/components/schemas/AddressData'
+            - type: string
+              minLength: 1
+              maxLength: 1024
+        name:
+          # данные ФИО
+          oneOf:
+            - $ref: '#/components/schemas/NameData'
+            - type: string
+              minLength: 1
+              maxLength: 1024
+        passport:
+          # паспортные ФИО
+          oneOf:
+            - $ref: '#/components/schemas/PassportData'
+            - type: string
+              minLength: 1
+              maxLength: 1024
+        langs:
+          # список языков, которыми владеет пользователь
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 64
+        msisdn:
+          # список номеров телефона пользователя
+          type: array
+          items:
+            $ref: '#/components/schemas/Msisdn'
+        relatives:
+          # список родственников пользователя
+          type: array
+          items:
+            $ref: '#/components/schemas/UserId'
+        email:
+          # список адресов электронной почта пользователя
+          type: array
+          items:
+            $ref: '#/components/schemas/Email'
+        imIdentifier:
+          # идентфикаторы пользователя в других мессанджерах
+          type: array
+          items:
+            $ref: '#/components/schemas/ImIdentifier'
+        userUpdatedDT:
+          # дата и время обновления информации
+          $ref: '#/components/schemas/DateTime'
+        userUnregisteredDT:
+          # дата и время прекращения регистрации
+          $ref: '#/components/schemas/DateTime'
+        contractRegisteredDT:
+          # дата и время заключения договора
+          $ref: '#/components/schemas/DateTime'
+        contract:
+          # номер договора
+          $ref: '#/components/schemas/Contract'
+        additional:
+          # дополнительная информация о пользователе
+          type: array
+          items:
+            type: object
+            properties:
+              title:
+                description: наименование о дополнительных сведениях
+                type: string
+                minLength: 1
+                maxLength: 128
+              content:
+                description: содержание дополнительных сведений
+                type: string
+                minLength: 1
+                maxLength: 4096
+            required:
+              - title
+              - content
+      required:
+        - telcoId
+        - userIdentifier
+        - userRegistered
+
+    RecordConnection:
+      type: object
+      properties:
+        telcoId:
+          # филиал ОРИ, обслуживаемый ТС ОРМ
+          $ref: '#/components/schemas/TelcoId'
+        arrivedDT:
+          # дата и время поступления в систему информации
+          $ref: '#/components/schemas/DateTime'
+        connectionDT:
+          # дата и время события
+          $ref: '#/components/schemas/DateTime'
+        serviceId:
+          # идентификатор сервиса, в котором произошло событие
+          $ref: '#/components/schemas/ServiceId'
+        abonent:
+          # идентификатор/тип абонента
+          $ref: '#/components/schemas/UserIdentifier'
+        abonentIpPort:
+          # список ip/port абонента
+          type: array
+          items:
+            $ref: '#/components/schemas/IpPort'
+        abonentMsisdn: 
+          # список номеров телефонов абонента
+          type: array
+          items:
+            $ref: '#/components/schemas/Msisdn'
+        abonentEmail:
+          # список адресов электронной почты абонента
+          type: array
+          items:
+            $ref: '#/components/schemas/Email'
+        abonentProgramm:
+          # список имен программ абонента
+          type: array
+          items:
+            $ref: '#/components/schemas/Programm'
+        abonentMiscInfo:
+          # список с прочей технической информацией об абоненте
+          type: array
+          items:
+            $ref: '#/components/schemas/MiscInfo'
+        eventId:
+          # тип события
+          $ref: '#/components/schemas/EventId'
+        contacts:
+          # список контактов абонента
+          type: array
+          items:
+            $ref: '#/components/schemas/UserIdentifier'
+        location:
+          # местоположение абонента
+          $ref: '#/components/schemas/Location'
+        resourceIdentifier:
+          # наименование/тип ресурса
+          $ref: '#/components/schemas/ResourceIdentifier'
+        resourceMetadata:
+          # техническая информация о ресурсе
+          oneOf:
+            - type: array
+              items:
+                description: техническая информация о файловых данных
+                type: object
+                properties:
+                  filename:
+                    type: string
+                    minLength: 1
+                    maxLength: 256
+                  filesize:
+                    $ref: '#/components/schemas/Integer'
+                required:
+                  - filename
+                  - filesize
+            - description: техническая информация о потоковых данных
+              type: object
+              properties:
+                timestamp:
+                  $ref: '#/components/schemas/DateTime'
+                duration:
+                  $ref: '#/components/schemas/Integer'
+                startOffset:
+                  $ref: '#/components/schemas/Integer'
+                StopOffset:
+                  $ref: '#/components/schemas/Integer'
+        owner:
+          # идентификатор/тип владельца ресурса
+          $ref: '#/components/schemas/UserIdentifier'
+        text:
+          # текст сообщения
+          $ref: '#/components/schemas/String'
+        payment:
+          # техническая информация о платеже
+          $ref: '#/components/schemas/PaymentData'
+        streamId:
+          # идентификатор содержимого
+          $ref: '#/components/schemas/StreamId'
+      required:
+        - telcoId
+        - arrivedDT
+        - connectionDT
+        - serviceId
+        - abonent
+        - eventId
+        - contacts
+
+    RecordAaa:
+      type: object
+      properties:
+        telcoId:
+          # филиал ОРИ, обслуживаемый ТС ОРМ
+          $ref: '#/components/schemas/TelcoId'
+        arrivedDT:
+          # дата и время поступления в систему информации
+          $ref: '#/components/schemas/DateTime'
+        connectionDT:
+          # дата и время события
+          $ref: '#/components/schemas/DateTime'
+        serviceId:
+          # идентификатор сервиса, в котором произошло событие
+          $ref: '#/components/schemas/ServiceId'
+        abonent:
+          # идентификатор/тип абонента
+          $ref: '#/components/schemas/UserIdentifier'
+        abonentIpPort:
+          # список ip/port абонента
+          type: array
+          items:
+            $ref: '#/components/schemas/IpPort'
+        abonentMsisdn: 
+          # список номеров телефонов абонента
+          type: array
+          items:
+            $ref: '#/components/schemas/Msisdn'
+        abonentEmail:
+          # список адресов электронной почты абонента
+          type: array
+          items:
+            $ref: '#/components/schemas/Email'
+        abonentProgramm:
+          # список имен программ абонента
+          type: array
+          items:
+            $ref: '#/components/schemas/Programm'
+        abonentMiscInfo:
+          # список с прочей технической информацией об абоненте
+          type: array
+          items:
+            $ref: '#/components/schemas/MiscInfo'
+        eventId:
+          # тип события
+          $ref: '#/components/schemas/EventId'
+        location:
+          # местоположение абонента
+          $ref: '#/components/schemas/Location'
+      required:
+        - telcoId
+        - arrivedDT
+        - connectionDT
+        - serviceId
+        - abonent
+        - eventId
+
+    RecordLink:
+      type: object
+      properties:
+        telcoId:
+          # филиал ОРИ, обслуживаемый ТС ОРМ
+          $ref: '#/components/schemas/TelcoId'
+        arrivedDT:
+          # дата и время поступления в систему информации
+          $ref: '#/components/schemas/DateTime'
+        connectionDT:
+          # дата и время события
+          $ref: '#/components/schemas/DateTime'
+        serviceId:
+          # идентификатор сервиса, в котором произошло событие
+          $ref: '#/components/schemas/ServiceId'
+        abonent:
+          # идентификатор/тип абонента
+          $ref: '#/components/schemas/UserIdentifier'
+        eventId:
+          # тип события
+          $ref: '#/components/schemas/EventId'
+        linked:
+          # идентификатор объекта, с которым установлена связь
+          $ref: '#/components/schemas/LinkedIdentifier'
+      required:
+        - telcoId
+        - arrivedDT
+        - connectionDT
+        - serviceId
+        - abonent
+        - eventId
+        - linked
+
+    RecordCert:
+      type: object
+      properties:
+        telcoId:
+          # филиал ОРИ, обслуживаемый ТС ОРМ
+          $ref: '#/components/schemas/TelcoId'
+        arrivedDT:
+          # дата и время поступления в систему информации
+          $ref: '#/components/schemas/DateTime'
+        fromDT:
+          # дата и время начала периода актуальности
+          $ref: '#/components/schemas/DateTime'
+        toDT:
+          # дата и время конца периода актуальности
+          $ref: '#/components/schemas/DateTime'
+        client:
+          # ip/port клиента
+          $ref: '#/components/schemas/IpPort'
+        server:
+          # ip/port сервера
+          $ref: '#/components/schemas/IpPort'
+        clientRandom:
+          # случайное значение клиента
+          $ref: '#/components/schemas/OctetString'
+        preMasterKey:
+          # предварительный секрет сессии на основе открытого ключа
+          $ref: '#/components/schemas/OctetString'
+        serverRandom:
+          # случайное значение сервера
+          $ref: '#/components/schemas/OctetString'
+      required:
+        - telcoId
+        - arrivedDT
+        - fromDT
+        - client
+        - server
+        - clientRandom
+        - preMasterKey
+      
+    RecordKey:
+      type: object
+      properties:
+        telcoId:
+          # филиал ОРИ, обслуживаемый ТС ОРМ
+          $ref: '#/components/schemas/TelcoId'
+        arrivedDT:
+          # дата и время поступления в систему информации
+          $ref: '#/components/schemas/DateTime'
+        fromDT:
+          # дата и время начала периода актуальности
+          $ref: '#/components/schemas/DateTime'
+        toDT:
+          # дата и время конца периода актуальности
+          $ref: '#/components/schemas/DateTime'
+        client:
+          # ip/port клиента
+          $ref: '#/components/schemas/IpPort'
+        server:
+          # ip/port сервера
+          $ref: '#/components/schemas/IpPort'
+        asClient:
+          # автономная система клиента
+          $ref: '#/components/schemas/Integer'
+        asServer:
+          # автономная система сервера
+          $ref: '#/components/schemas/Integer'
+        clientRandom:
+          # случайное значение клиента
+          $ref: '#/components/schemas/OctetString'
+        preMasterKey:
+          # предварительный секрет сессии на основе открытого ключа
+          $ref: '#/components/schemas/OctetString'
+        serverRandom:
+          # случайное значение сервера
+          $ref: '#/components/schemas/OctetString'
+        sni:
+          # server name indication
+          $ref: '#/components/schemas/Sni'
+        userId:
+          # идентификатор пользователя
+          $ref: '#/components/schemas/UserId'
+        userLogin:
+          # пользовательский логин
+          $ref: '#/components/schemas/UserLogin'
+        keyExchange:
+          # метод обмена ключами
+          $ref: '#/components/schemas/KeyExchange'
+        chipherSuite:
+          # комбинация шифров (алгоритмов шифрования)
+          $ref: '#/components/schemas/Integer'
+        clientRegion:
+          # регион клиента
+          $ref: '#/components/schemas/Region'
+        serverRegion:
+          # регион сервера
+          $ref: '#/components/schemas/Region'
+        serviceName:
+          # имя сервиса
+          $ref: '#/components/schemas/ServiceName'
+      required:
+        - telcoId
+        - arrivedDT
+        - fromDT
+        - client
+        - server
+        - clientRandom
+        - preMasterKey
+
+    #-------------------------------
+    # Primitives
+    #-------------------------------
+    TaskId:
+      description: идентификатор задачи
+      type: string
+      minLength: 1
+      maxLength: 64
+
+    TelcoId:
+      description: филиал ОРИ, обслуживаемый ТС ОРМ (расшифровывается по справочнику)
+      type: integer
+      minimum: 0
+      maximum: 65535
+
+    ServiceId:
+      description: идентификатор сервиса (расшифровывается по справочнику)
+      type: integer
+      minimum: 0
+      maximum: 65535
+    
+    UserIdentifier:
+      type: object
+      properties:
+        userId:
+          $ref: '#/components/schemas/UserId'
+        userType:
+          description: тип пользователя (расшифровывается по справочнику)
+          type: integer
+          minimum: 0
+          maximum: 65535
+      required:
+        - userId
+        - userType
+
+    UserId:
+      allOf:
+        - $ref: '#/components/schemas/RequestAbonents'
+        - type: object
+          properties:
+            value:
+              description: идентификатор пользователя
+              type: string
+              minLength: 1
+              maxLength: 128
+
+    ResourceIdentifier:
+      type: object
+      properties:
+        resourceName:
+          $ref: '#/components/schemas/ResourceName'
+        resourceType:
+          description: тип ресурса (расшифровывается по справочнику)
+          type: integer
+          minimum: 0
+          maximum: 65535
+      required:
+        - resourceName
+
+    ResourceName:
+      description: наименование ресурса
+      type: string
+      minLength: 1
+      maxLength: 4096
+
+    LinkedIdentifier:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/UserIdentifier'
+        resource:
+          $ref: '#/components/schemas/ResourceIdentifier'
+      required:
+        - user
+        - resource
+
+    NickName:
+      description: псевдоним пользователя
+      type: string
+      minLength: 1
+      maxLength: 1024
+      
+    NameData:
+      type: object
+      properties:
+        given:
+          $ref: '#/components/schemas/GivenName'
+        initial:
+          $ref: '#/components/schemas/InitialName'
+        family:
+          $ref: '#/components/schemas/FamilyName'
+
+    GivenName:
+      description: имя
+      type: string
+      minLength: 1
+      maxLength: 128
+      
+    InitialName:
+      description: отчество
+      type: string
+      minLength: 1
+      maxLength: 128
+      
+    FamilyName:
+      description: фамилия
+      type: string
+      minLength: 1
+      maxLength: 128
+
+    AddressData:
+      type: object
+      properties:
+        country:
+          description: страна
+          type: string
+          minLength: 1
+          maxLength: 128
+        region:
+          description: область
+          type: string
+          minLength: 1
+          maxLength: 128
+        city:
+          description: город, поселок, деревня, населенный пункт
+          type: string
+          minLength: 1
+          maxLength: 128
+        street:
+          description: улица
+          type: string
+          minLength: 1
+          maxLength: 128
+        building:
+          description: дом, строение
+          type: string
+          minLength: 1
+          maxLength: 128
+        apartment:
+          description: квартира, офис
+          type: string
+          minLength: 1
+          maxLength: 128
+
+    PassportData:
+      type: object
+      properties:
+        serial:
+          description: серия
+          type: string
+          minLength: 1
+          maxLength: 16
+        number:
+          description: номер
+          type: string
+          minLength: 1
+          maxLength: 16
+
+    IpPort:
+      type: object
+      properties:
+        address:
+          oneOf:
+            - type: string
+              format: ipv4
+            - type: string
+              format: ipv6
+        port:
+          type: integer
+          minimum: 0
+          maximum: 65535
+
+    Msisdn:
+      description: номер телефона
+      type: string
+      minLength: 1
+      maxLength: 64
+
+    Email:
+      description: электронный адрес почты
+      type: string
+      format: email
+      minLength: 1
+      maxLength: 256
+    
+    ImIdentifier:
+      type: object
+      properties:
+        imId:
+          $ref: '#/components/schemas/ImId'
+        imName:
+          description: наименование мессанджера
+          type: string
+        
+    ImId:
+      description: идентификатор пользователя в мессанджере
+      type: string
+      minLength: 1
+      maxLength: 256
+
+    Programm:
+      description: нименование программы-клиента
+      type: string
+      minLength: 1
+      maxLength: 1024
+
+    MiscInfo:
+      description: прочая информация
+      type: string
+      minLength: 1
+      maxLength: 1024
+
+    Contract:
+      description: номер договора
+      type: string
+      minLength: 1
+      maxLength: 64
+
+    Location:
+      anyOf:
+        - $ref: '#/components/schemas/MobileLocation'
+        - $ref: '#/components/schemas/GeoLocation'
+        - description: неструктурированное описание местоположения
+          type: string
+          minLength: 1
+          maxLength: 4096
+
+    MobileLocation:
+      type: object
+      properties:
+        mcc:
+          description: код страны оператора связи
+          type: string
+          minLength: 1
+          maxLength: 4
+        mnc:
+          description: код оператора связи
+          type: string
+          minLength: 1
+          maxLength: 3
+        lac:
+          description: LAC оператора связи
+          type: integer
+          minLength: 1
+          maxLength: 65535
+        cell:
+          description: CELL оператора связи
+          type: integer
+          minLength: 1
+          maxLength: 4294967295
+        operator:
+          description: наименование оператора связи
+          type: string
+          minLength: 1
+          maxLength: 64
+
+    GeoLocation:
+      type: object
+      properties:
+        latitude:
+          description: широта
+          type: number
+        longitude:
+          description: долгота
+          type: number
+      required:
+        - latitude
+        - longitude
+
+    EventId:
+      description: тип события (расшифровывается по справочнику)
+      type: integer
+      minimum: 0
+      maximum: 65535
+
+    PaymentData:
+      type: object
+      properties:
+        id:
+          $ref: '#/components/schemas/PaymentId'
+        serviceId:
+          description: идентификатор платежного сервиса (расшифровывается по справочнику)
+          type: integer
+          minimum: 0
+          maximum: 65535
+        info:
+          $ref: '#/components/schemas/PaymentInfo'
+      required:
+        - id
+        - serviceId
+
+    PaymentId:
+      description: идентификатор транзакции, счета, кошелька и т.д.
+      type: string
+      minLength: 1
+      maxLength: 128
+
+    PaymentInfo:
+      description: дополнительная информация
+      type: string
+      minLength: 1
+      maxLength: 4096
+
+    Sni:
+      description: server name indication
+      type: string
+      minLength: 1
+      maxLength: 128
+
+    UserLogin:
+      description: пользовательский логин
+      type: string
+      minLength: 1
+      maxLength: 64
+
+    KeyExchange:
+      description: метод обмена ключами
+      type: string
+      minLength: 1
+      maxLength: 16
+
+    Region:
+      description: наименование региона
+      type: string
+      minLength: 1
+      maxLength: 10
+
+    ServiceName:
+      description: имя сервиса
+      type: string
+      minLength: 1
+      maxLength: 16
+
+    StreamId:
+      description: идентификатор содержимого
+      type: string
+      pattern: ^[[:xdigit:]]{16,16}$
+
+    Integer:
+      type: integer
+
+    String:
+      type: string
+
+    Date:
+      type: string
+      format: date
+
+    DateTime:
+      type: string
+      format: date-time
+
+    OctetString:
+      type: string
+      pattern: ^[[:xdigit:]]+$

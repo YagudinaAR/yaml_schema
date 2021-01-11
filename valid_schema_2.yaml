@@ -1,0 +1,235 @@
+openapi: 3.0.5
+info:
+  title: ORI
+  version: 1.0.0
+
+servers:
+  - url: http://generic-ori.com
+  
+paths:
+  /tasks:
+    post:
+      summary: Creates new task
+      operationId: createTask
+      requestBody:
+        description: Contains task parameters
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskParameters'
+      responses:
+        '200':
+          description: Successful response containing selected data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskResult'
+        '201':
+          description: Successful response containing registered task id
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  taskId:
+                    $ref: '#/components/schemas/TaskId'
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/TaskId'
+
+components:
+  schemas:
+    #-------------------------------
+    # Task parameters
+    #-------------------------------
+    TaskParameters:
+      oneOf:
+        - $ref: '#/components/schemas/StatisticParameters'
+        - $ref: '#/components/schemas/ContentParameters'
+      discriminator:
+        propertyName: typeRequest
+        mapping:
+          statistic: '#/components/schemas/StatisticParameters'
+          content: '#/components/schemas/ContentParameters'
+
+    StatisticParameters:
+      type: object
+      properties:
+        typeRequest:
+          type: string
+        telcoIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/TelcoId'
+        findRange:
+          type: object
+          properties:
+            begin:
+              $ref: '#/components/schemas/DateTime'
+            end:
+              $ref: '#/components/schemas/DateTime'
+          required:
+            - begin
+            - end
+        taskType:
+          enum: [abonents, connections, aaa, links, certs, keys]
+        parameters:
+          $ref: '#/components/schemas/StatisticParameter'
+      required:
+        - typeRequest
+        - taskType
+        - parameters
+
+    StatisticParameter:
+      oneOf:
+        - $ref: '#/components/schemas/LogicalAnd'
+        - $ref: '#/components/schemas/SimpleParameter'
+
+    LogicalAnd:
+      type: object
+      properties:
+        and:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatisticParameter'
+      required:
+        - and
+        
+    SimpleParameter:
+      type: object
+      properties:
+        valueType:
+          type: string
+      discriminator:
+        propertyName: valueType
+      required:
+        - valueType
+#####################################################################################
+    RequestAbonents:
+      allOf:
+        - $ref: '#/components/schemas/SimpleParameter'
+        - type: object
+          properties:
+            value:
+              oneOf:
+                - $ref: '#/components/schemas/UserId'
+                - $ref: '#/components/schemas/NickName'
+          required:
+            - value
+    RequestConnections:
+      allOf:
+        - $ref: '#/components/schemas/SimpleParameter'
+        - type: object
+          properties:
+            value:
+              oneOf:
+                - $ref: '#/components/schemas/ServiceId'
+                - $ref: '#/components/schemas/UserId'
+          required:
+            - value
+    ContentParameters:
+      type: object
+      properties:
+        typeRequest:
+          type: string
+        telcoIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/TelcoId'
+        parameters:
+          type: object
+          properties:
+            streamId:
+              $ref: '#/components/schemas/StreamId'
+            beginOffset:
+              type: integer
+            endOffset:
+              type: integer
+          required:
+            - streamId
+
+    #-------------------------------
+    # Task results
+    #-------------------------------
+    TaskResult:
+      type: array
+      items:
+        oneOf:
+          - $ref: '#/components/schemas/RecordAbonent'
+          - $ref: '#/components/schemas/RecordConnection'
+
+    RecordAbonent:
+      type: object
+      properties:
+        telcoId:
+          # филиал ОРИ, обслуживаемый ТС ОРМ
+          $ref: '#/components/schemas/TelcoId'
+        userIdentifier:
+          # идентификатор/тип пользователя
+          $ref: '#/components/schemas/UserIdentifier'
+        
+    RecordConnection:
+      type: object
+      properties:
+        telcoId:
+          # филиал ОРИ, обслуживаемый ТС ОРМ
+          $ref: '#/components/schemas/TelcoId'
+        arrivedDT:
+          # дата и время поступления в систему информации
+          $ref: '#/components/schemas/DateTime'
+
+    #-------------------------------
+    # Primitives
+    #-------------------------------
+    TaskId:
+      description: идентификатор задачи
+      type: string
+      minLength: 1
+      maxLength: 64
+
+    TelcoId:
+      description: филиал ОРИ, обслуживаемый ТС ОРМ (расшифровывается по справочнику)
+      type: integer
+      minimum: 0
+      maximum: 65535
+
+    ServiceId:
+      description: идентификатор сервиса (расшифровывается по справочнику)
+      type: integer
+      minimum: 0
+      maximum: 65535
+    
+    UserIdentifier:
+      type: object
+      properties:
+        userId:
+          $ref: '#/components/schemas/UserId'
+        userType:
+          description: тип пользователя (расшифровывается по справочнику)
+          type: integer
+          minimum: 0
+          maximum: 65535
+      required:
+        - userId
+        - userType
+
+    UserId:
+      type: string
+      minLength: 1
+      maxLength: 128
+
+    NickName:
+      description: псевдоним пользователя
+      type: string
+      minLength: 1
+      maxLength: 1024
+
+    StreamId:
+      description: идентификатор содержимого
+      type: string
+      pattern: ^[[:xdigit:]]{16,16}$
+      
+    DateTime:
+      type: string
+      format: date-time
