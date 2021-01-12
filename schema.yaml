@@ -30,10 +30,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  taskId:
-                    $ref: '#/components/schemas/TaskId'
+                $ref: '#/components/schemas/TaskId'
             text/plain:
               schema:
                 $ref: '#/components/schemas/TaskId'
@@ -150,7 +147,7 @@ components:
       type: object
       properties:
         records:
-          type: number
+          type: integer
           minimum: 0
       required:
         - records
@@ -160,7 +157,7 @@ components:
       type: object
       properties:
         bytes:
-          type: number
+          type: integer
           minimum: 0
       required:
         - bytes
@@ -170,12 +167,12 @@ components:
         - $ref: '#/components/schemas/TaskStatusResult'
         - type: object
           properties: 
-            message:
+            errorMessage:
               type: string
               minLength: 1
               maxLength: 256
           required:
-            - message
+            - errorMessage
 
     #-------------------------------
     # Task parameters
@@ -373,7 +370,6 @@ components:
                 - $ref: '#/components/schemas/ResourceName'
           required:
             - value
-
 
     RequestCerts:
       allOf:
